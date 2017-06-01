@@ -1,3 +1,0 @@
-/src/second_term/build/CMakeFiles/edit_cache.dir
-/src/second_term/build/CMakeFiles/rebuild_cache.dir
-/src/second_term/build/CMakeFiles/pid.dir
