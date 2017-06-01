@@ -61,9 +61,7 @@ int main()
           pid.UpdateError(cte);
           std::cout << "Kp=" << pid.Kp << " Kd=" << pid.Kd << " Ki=" << pid.Ki << std::endl;
           std::cout << "Ep=" << pid.p_error << " Ed=" << pid.d_error << " Ei=" << pid.i_error << std::endl;
-          steer_value = -pid.Kp*pid.p_error
-                        -pid.Kd*pid.d_error
-                        -pid.Ki*pid.i_error;
+          steer_value = pid.TotalError();
 
           // DEBUG
           std::cout << "CTE: " << cte << " Steering Value: " << steer_value << std::endl;
