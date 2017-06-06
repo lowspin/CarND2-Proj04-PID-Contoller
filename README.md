@@ -1,4 +1,4 @@
-# CarND-Controls-PID
+# PID Controller Project (Term 2 Project 4)
 This is my submission for the PID Controller project in term 2 of the Udacity Self-Driving Car Engineer Nanodegree Program. For details of the projectm, refer to the source [repo](https://github.com/udacity/CarND-PID-Control-Project).
 
 ---
