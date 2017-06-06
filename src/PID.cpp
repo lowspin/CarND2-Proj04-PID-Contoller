@@ -41,7 +41,9 @@ void PID::UpdateError(double cte) {
 }
 
 double PID::TotalError() {
-  return (-Kp*p_error -Kd*d_error -Ki*i_error);
+  // return (-Kp*p_error); // P
+  // return (-Kp*p_error -Kd*d_error); // P+D
+  return (-Kp*p_error -Kd*d_error -Ki*i_error); // P+I+D
 }
 
 void PID::TuneNext() {

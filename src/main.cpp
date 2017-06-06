@@ -1,3 +1,7 @@
+//#define _TWIDDLE_ON_
+// #define _DEBUG_MSG_RUN_
+// #define _DEBUG_MSG_TWIDDLE_
+
 #include <uWS/uWS.h>
 #include <iostream>
 #include "json.hpp"
@@ -33,23 +37,30 @@ int main()
   uWS::Hub h;
 
   PID pid;
-  // TODO: Initialize the pid variable.
+
+#ifdef _TWIDDLE_ON_
+  std::cout << "TWIDDLE ON" << std::endl;
   pid.Init(0.2, 0.004, 3.0, true);
   //pid.Init(0.0, 0.0, 0.0, true); // to-be adjusted by Twiddle
-  pid.Params[0] = pid.Kp; //0.0; // Kp
-  pid.Params[1] = pid.Ki; //0.0; // Ki
-  pid.Params[2] = pid.Kd; //0.0; // Kd
-  pid.dP[0] = 0.1; //0.5;// pid.Kp; //1.0; //1.0;  // dKp
-  pid.dP[1] = 0.1; //0.01; // pid.Ki; //1.0; //0.01; // dKi
-  pid.dP[2] = 0.1; //pid.Kd; //1.0; //10.0; // dKd
+  pid.Params[0] = pid.Kp;
+  pid.Params[1] = pid.Ki;
+  pid.Params[2] = pid.Kd;
+  pid.dP[0] = 0.1; // dKp
+  pid.dP[1] = 0.1; // dKi
+  pid.dP[2] = 0.1; // dKd
   pid.stage2 = false;
-  pid.tuning_param = 2; //0;
+  pid.tuning_param = 2;
   pid.best_avgcte = 99999.99;
   pid.status = 0;
-
   // first parameter for Twiddle
   pid.Params[pid.tuning_param] += pid.dP[pid.tuning_param];
-  std::cout << "---------- Twiddle Starts -------------" << std::endl;
+#else
+  std::cout << "TWIDDLE OFF (to turn on, uncomment 1st line in main.cpp)" << std::endl;
+  //pid.Init(0.2, 0.004, 3.0, false);
+  pid.Init(0.0478297, 0.0478297, 2.46874, false);
+  std::cout << "Using Params: Kp=" << pid.Kp << " Ki=" << pid.Ki << " Kd=" << pid.Kd << std::endl;
+  std::cout << " --------------------------------- " << std::endl;
+#endif
 
   h.onMessage([&pid](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -69,22 +80,18 @@ int main()
           double steer_value;
 
           /*
-          * TODO: Calcuate steering value here, remember the steering value is
-          * [-1, 1].
-          * NOTE: Feel free to play around with the throttle and speed. Maybe use
-          * another PID controller to control the speed!
+          * TODO: Add another PID controller to control the speed!
           */
-
+#ifdef _TWIDDLE_ON_
           if(pid.still_twiddling){ // Twiddle
-//            std::cout << "\nTwiddle frame#" << pid.framecount << " tuning " << pid.tuning_param << "-" << pid.stage2 << " avg_cte = " << pid.avg_cte << " bestavgcte = " << pid.best_avgcte << std::endl;
-            //if((pid.dP[0]<0.002)&&(pid.dP[1]<0.00004)&&(pid.dP[2]<0.03)) { // tolerance met - exit
-            if(pid.dP[0]+pid.dP[1]+pid.dP[2]<0.2) {
-            //if((pid.dP[0]<0.1)) {
-              //pid.Init(0.2, 0.004, 3.0, true);
-              //pid.Init(pid.Kp, pid.Ki, pid.Kd, false);
+#else
+          if(false){ // Twiddle
+#endif
+            if( pid.dP[0]+pid.dP[1]+pid.dP[2]<0.15 )
+            {
               pid.Init(pid.Params[0], pid.Params[1], pid.Params[2], false);
               std::cout << " ------- Twiddle Complete -------- " << std::endl;
-              std::cout << "Final Params: Kp=" << pid.Params[0] << " Ki=" << pid.Params[1] << " Kd=" << pid.Params[2] << std::endl;
+              std::cout << "Using Params: Kp=" << pid.Kp << " Ki=" << pid.Ki << " Kd=" << pid.Kd << std::endl;
               std::cout << " --------------------------------- " << std::endl;
 
               // reset
@@ -92,25 +99,18 @@ int main()
               std::string msg = "42[\"reset\",{}]";
               ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
             }
-//            else if (pid.framecount==0)
-//            {
-//              pid.Params[pid.tuning_param] += pid.dP[pid.tuning_param];
-//            }
-//            else if ((pid.framecount>500) ||  // Tune Twiddle eval_frames = 200;
-//                     (pid.avg_cte>pid.best_avgcte) ||
-//                     (cte>3.0) ||
-//                     ((speed<0.001)&&(pid.framecount>20)) //stuck
-//                     )
+
             else if (pid.framecount>500)
             {
               if (pid.avg_cte<pid.best_avgcte)
               {
                 pid.best_avgcte = pid.avg_cte;
                 pid.dP[pid.tuning_param] *= 1.1;
-                std::cout << "++++++++++++++++++++++++++++++++++++++++++++++" << std::endl;
-                std::cout << "Exit 1 Frame " << pid.framecount << " bestcte=" << pid.best_avgcte << " avgcte=" << pid.avg_cte << " P" << pid.tuning_param << ": " << pid.Params[0] << " " << pid.Params[1] << " " << pid.Params[2] << " dP: " << pid.dP[0] << " " << pid.dP[1] << " " << pid.dP[2] << " ";
+                std::cout << "Twiddle Exit1 Frame#" << pid.framecount <<
+                  " bestcte=" << pid.best_avgcte << " avgcte=" << pid.avg_cte <<
+                  " P" << pid.tuning_param << ": Kp=" << pid.Params[0] << " Ki=" << pid.Params[1] << " Kd=" << pid.Params[2] <<
+                  " dP: dKp=" << pid.dP[0] << " dKi=" << pid.dP[1] << " dKd=" << pid.dP[2] << std::endl;
                 pid.Init(pid.Params[0], pid.Params[1], pid.Params[2], true);
-                //pid.Init(pid.Kp, pid.Ki, pid.Kd, true);
                 pid.stage2 = false;
                 pid.TuneNext();
                 pid.Params[pid.tuning_param] += pid.dP[pid.tuning_param];
@@ -127,12 +127,13 @@ int main()
                 {
                   pid.Params[pid.tuning_param] -= 2.0*pid.dP[pid.tuning_param];
                   pid.Params[pid.tuning_param] = (pid.Params[pid.tuning_param]<0.0)?0.0:pid.Params[pid.tuning_param];
-                  std::cout << "--------------------------------------------" << std::endl;
-                  std::cout << "Exit 2 Frame " << pid.framecount << " bestcte=" << pid.best_avgcte << " avgcte=" << pid.avg_cte << " P" << pid.tuning_param << ": " << pid.Params[0] << " " << pid.Params[1] << " " << pid.Params[2] << " dP: " << pid.dP[0] << " " << pid.dP[1] << " " << pid.dP[2] << " ";
+                  std::cout << "Twiddle Exit2 Frame#" << pid.framecount <<
+                    " bestcte=" << pid.best_avgcte << " avgcte=" << pid.avg_cte <<
+                    " P" << pid.tuning_param << ": Kp=" << pid.Params[0] << " Ki=" << pid.Params[1] << " Kd=" << pid.Params[2] <<
+                    " dP: dKp=" << pid.dP[0] << " dKi=" << pid.dP[1] << " dKd=" << pid.dP[2] << std::endl;
                   pid.Init(pid.Params[0], pid.Params[1], pid.Params[2], true);
-                  //pid.Init(pid.Kp, pid.Ki, pid.Kd, true);
                   pid.stage2 = true;
-                  // same paramter
+                  // tune same paramter
 
                   // reset
                   pid.status = 2;
@@ -152,13 +153,14 @@ int main()
                     pid.Params[pid.tuning_param] += pid.dP[pid.tuning_param];
                     pid.dP[pid.tuning_param] *= 0.9;
                   }
-                  std::cout << "========================" << std::endl;
-                  std::cout << "Exit 3 Frame " << pid.framecount<< " bestcte=" << pid.best_avgcte << " avgcte=" << pid.avg_cte  << " P" << pid.tuning_param << ": " << pid.Params[0] << " " << pid.Params[1] << " " << pid.Params[2] << " dP: " << pid.dP[0] << " " << pid.dP[1] << " " << pid.dP[2] << " ";
+                  std::cout << "Twiddle Exit3 Frame#" << pid.framecount <<
+                    " bestcte=" << pid.best_avgcte << " avgcte=" << pid.avg_cte <<
+                    " P" << pid.tuning_param << ": Kp=" << pid.Params[0] << " Ki=" << pid.Params[1] << " Kd=" << pid.Params[2] <<
+                    " dP: dKp=" << pid.dP[0] << " dKi=" << pid.dP[1] << " dKd=" << pid.dP[2] << std::endl;
                   pid.Init(pid.Params[0], pid.Params[1], pid.Params[2], true);
                   //pid.Init(pid.Kp, pid.Ki, pid.Kd, true);
                   pid.stage2 = false;
                   pid.TuneNext();
-                  //pid.tuning_param = (pid.tuning_param+1)%3;  // 0, 1, 2, 0, 1, 2, 0 ....
 
                   // reset
                   pid.status = 3;
@@ -172,11 +174,7 @@ int main()
             else
             {
               // Twiddle evaluate
-              if (pid.framecount==0) // just after reset
-              {
-                //pid.Params[pid.tuning_param] += pid.dP[pid.tuning_param];
-              }
-              if (pid.framecount<10) // just after reset
+              if (pid.framecount<10) // just after reset - steer straight
               {
                 pid.UpdateError(cte); // also update avg_cte
                 steer_value = 0.0;
@@ -189,17 +187,18 @@ int main()
                 steer_value = (steer_value<-1.0)?-1.0:steer_value;
               }
 
+#ifdef _DEBUG_MSG_TWIDDLE_
               // DEBUG
-//              std::cout << "Twiddle Kp=" << pid.Kp << " Ki=" << pid.Ki << " Kd=" << pid.Kd << std::endl;
-//              std::cout << "Twiddle dp=" << pid.dP[0] << " di=" << pid.dP[1] << " dd=" << pid.dP[2] << std::endl;
-//              std::cout << "Twiddle " << pid.status << " bestCTE: " << pid.best_avgcte << " avgCTE: " << pid.avg_cte << " currCTE: " << cte << std::endl;
-//              std::cout << "speed: " << speed << " Steering Value: " << steer_value << std::endl;
-
+              std::cout << "Twiddle Kp=" << pid.Kp << " Ki=" << pid.Ki << " Kd=" << pid.Kd << std::endl;
+              std::cout << "Twiddle dp=" << pid.dP[0] << " di=" << pid.dP[1] << " dd=" << pid.dP[2] << std::endl;
+              std::cout << "Twiddle " << pid.status << " bestCTE: " << pid.best_avgcte << " avgCTE: " << pid.avg_cte << " currCTE: " << cte << std::endl;
+              std::cout << "speed: " << speed << " Steering Value: " << steer_value << std::endl;
+#endif
               json msgJson;
               msgJson["steering_angle"] = steer_value;
               msgJson["throttle"] = 0.3; //1.0-abs(steer_value); //0.3;
               auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-//              std::cout << msg << std::endl;
+              // std::cout << msg << std::endl;
               ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
 
               pid.framecount++;
@@ -212,16 +211,17 @@ int main()
             steer_value = (steer_value>1.0)?1.0:steer_value;
             steer_value = (steer_value<-1.0)?-1.0:steer_value;
 
+#ifdef _DEBUG_MSG_RUN_
             // DEBUG
             std::cout << "Kp=" << pid.Kp << " Ki=" << pid.Ki << " Kd=" << pid.Kd << std::endl;
             std::cout << "Ep=" << pid.p_error << " Ei=" << pid.i_error<< " Ed=" << pid.d_error  << std::endl;
             std::cout << "CTE: " << cte << " speed: " << speed << " Steering Value: " << steer_value << std::endl;
-
+#endif
             json msgJson;
             msgJson["steering_angle"] = steer_value;
-            msgJson["throttle"] = 0.3; // 1.0-abs(steer_value); //0.3;
+            msgJson["throttle"] = 0.3; //1.0-abs(steer_value); //0.3;
             auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-            std::cout << msg << std::endl;
+            // std::cout << msg << std::endl;
             ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
 
             pid.framecount++;
@@ -251,7 +251,7 @@ int main()
   });
 
   h.onConnection([&h](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
-    std::cout << "Connected!!!" << std::endl;
+    //std::cout << "Connected!!!" << std::endl;
   });
 
   h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER> ws, int code, char *message, size_t length) {
@@ -263,6 +263,9 @@ int main()
   if (h.listen(port))
   {
     std::cout << "Listening to port " << port << std::endl;
+#ifdef _TWIDDLE_ON_
+    std::cout << "---------- Twiddle Starts -------------" << std::endl;
+#endif
   }
   else
   {
